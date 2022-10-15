@@ -124,32 +124,6 @@ key|type|value|意味(SQLキーワード)
 `D`,`DF`|str|`デフォルト値`|`default デフォルト値`
 `C`,`CK`|str|`条件式`|`check(条件式)`
 
-## `id`
-
-　列名が`id`かつ型が整数のときは問答無用で`primary key`制約をつけていいかもしれない。RDBMSはその性質上、レコードを一意に特定するためのキーとなる列が必須である。その名前は大抵`id`。なので列名が`id`なら`primary key`をつけるくらいでいい。
-
-## `FK`
-
-　外部キーは親となる表と列の名前が必要。それを`表名 列名`という半角スペース区切りのテキストで渡す。区切り文字に関しては考えると複雑。SQLのFK的には`表名(列名)`となる。SQLのselect文では`表名.列名`となる。でも面倒なのですべての構文における区切り文字スペースを使うことにした。
-
-## `not null`
-
-　すべての項目は`not null`をつける。もしNULLをつけたい列があればNullable項目として`metadata={'N':True}`と指定するようにする。
-
-　NULL参照エラー。NULLポインタエラー。日本では「ぬるぽ」の愛称で親しまれる悪しき存在。これは害悪である。
-
-　NULL参照は10億ドルの損失を生む過ちだった。1965年に考案されたNULLの概念は、後に無数のNULL参照エラーという致命的なバグやクラッシュを引き起こす原因となった。NULLは10億ドルの損失や労力を生み出した悪しき存在となった。そう開発者のアントニー・ホーア氏が語った。
-
-　ぬるぽのない世界をめざす。かくして世はNULL安全言語が礼賛される時代となった。NULLがある言語は`??`演算子などでNULLをうまいこと回避する術を提供する機能を実装した。さらにRustなどの新しい言語ではNULL自体が存在しない作りになり、完全にぬるぽを抹殺せしめた。
-
-　データベースの世界でもNULLの悪名高さは有名。[NULL撲滅委員会][]なるものさえあった。
-
-[NULL撲滅委員会]:http://mickindex.sakura.ne.jp/database/db_getout_null.html
-
-　とにかくNULLには消えてもらいたいのが現代の総意である。今まで散々こき使ってきたくせに突然ポイ捨てされるのも哀れだが、そういう流れなのだ。
-
-　というわけでSQLでcreate tableするときは`not null`制約をデフォルトでつけることにする。
-
 ## 複雑な制約
 
 　列名に対して制約を指定する方法だと、複数の列名で指定する制約を定義できない。
@@ -226,174 +200,155 @@ class Record:
 
 　`metadata`のキー名は`check`の`c`ではじめて適当に番号を振ったもの。`PK`,`UK`,`FK`の名前はそれぞれの句で使うため使用不可。それと重複しない名前なら何でもいい。
 
+　ここまでなら何となくできそうに思えるが、SQL文はたくさんある。
 
-## もっとシンプルに書きたい
+# SQL文パターン
 
-　必要な要素は限りなく少ない。
+* `create table`
+	* `名 型 制約`
+	* `constraint 名 制約`
+* `drop table`
+* `select`
+	* `[列名]`
+	* `from`
+		* `表名`
+	* `where`
+		* `[列名 演算子 値]`
+		* `AND`/`OR`
+		* `関数(引数)`
+		* `副問合せ`
+	* `group by`
+		* `[列名]`
+	* `order by`
+		* `asc`/`desc`
+		* `[列名]`
+	* `join`
+		* `[表L.列A 演算子 表R.列A]`
+		* `AND`/`OR`
+		* `関数(引数)`
+		* `副問合せ`
+* `insert`
+	* `表名`
+	* `[列名]`
+	* `[値]`
+* `update`
+	* `表名`
+	* `[列名]`
+	* `[値]`
+	* `where`
+* `delete`
+	* `from`
+		* `表名`
 
-```
-id int PK
-name str UK
-sid int FK
-birth dt = NOW
-nullable str N
-is_delete bool
-```
+　これらをすべてPythonで読みやすく書きやすいようラップすることができるか？　考えてみる。
 
-　SQLite3の型だけに絞れば1字で表現できる。できれば省略したときは`TEXT`としたいが、後続の制約と区別がつかなくなりそう。
+```python
+@dataclass
+class Record:
+    id: int
 
-略|SQLite3型|意味
---|---------|----
-`n`|`NULL`|NULL
-`i`|`INTEGER`|整数
-`r`|`REAL`|浮動小数点数
-`b`|`BLOB`|バイナリ
-`t`|`TEXT`|テキスト
-
-key|type|value|意味(SQLキーワード)
----|----|-----|-------------------
-`p`,`pk`|bool|`True`/`False`|`primary key`
-`u`,`uk`|bool|`True`/`False`|`unique`
-`f`,`fk`|str|`表名 列名`|`references t(c)`
-`n`,`nl`|bool|`True`/`False`|`not null`を外す
-`d`,`df`|str|`デフォルト値`|`default デフォルト値`
-`c`,`ck`|str|`条件式`|`check(条件式)`
-
-　ついでに`AUTOINCREMENT`は`a`で表現する。重複もしない。
-
-略|SQLite3型|意味
---|---------|----
-`a`|`AUTOINCREMENT`|一度使用したIDを二度と使わない（DELETEしたIDは永久欠番）
-
-
-　`n`だけが重複する。ひとつの列あたり次の4パターンありうる。
-
-* `名 型 制`
-* `名 型`
-* `名 制`
-* `名` 
-
-　このうち`n`が重複するので`id n`としたとき`n`は型なのか制約なのか判断がつかない。
-
-　もっとも、型を`NULL`にすることは考えにくい。それは非対応にすればいいか。これで`n`は制約の`not null`を外してNullableな列であることを表せる。
-
-　複数列が関わる制約については以下。`+PK`のようにプレフィクスを付けて列名でないことを示す。プレフィクスは何でもいいが列名で使える記号`[a-zA-Z_]`以外で、かつ絶対に名前として使わなそうな字にしたい。それでいて制約を付与することがイメージできる字がよい。
-
-```
-id int
-name str
-sid int
-birth dt = NOW
-nullable str N
-+PK id sid
-+UK id sid
-+FK id sid TableName
-+CK id<5 && sid<3
+SqlBuilder.create_table(Record) #=> create table Record(id integer);
 ```
 
-　`WITHOUT_ROWID`テーブルを作るときは以下。
+　`insert`文など値がいる文はpreperd statementを使う。数値はそのまま、文字列をシングルクォート、という差を吸収してくれる。また、BLOBはpreperdでやるしかない。`sqlite3.cursor.execute()`メソッドを使う。
 
+```python
+import sqlite3
+con = sqlite3.connect('my.db')
+cur = conn.cursor()
+con.execute("insert into record values(?,?)", (1,'A'))
+con.close()
 ```
--ID
+
+　`con.execute`の引数2つを返すメソッドを作りたい。以下みたいに。
+
+```python
+con.execute(SqlBuilder.insert(Record(1,'A')))
 ```
+
+　でも、他の文では明らかに情報不足。たとえば`update`文はある特定の行だけ更新するのが普通。そこで`where`句を使う。これを表現するならどうするか。
+
+```python
+con.execute(f"update record set id=?, name=? where id=?", (2,'A',1))
+```
+
+```python
+con.execute(SqlBuilder.update(cols=Record(2,'A'), where=Record(id=1)))
+```
+
+　たしかに一見よさげ。でも、`age >= 18`みたいな演算子を含んだ条件式を表現したいときは？
+
+```python
+con.execute(f"update record set is_adult=? where id>=?", (1,18))
+```
+
+```python
+con.execute(SqlBuilder.update(cols=Record(2,'A'), where=lambda r: 18 <= r.id))
+```
+
+　ラムダ式で表現できそう。でも、問題はそのラムダ式をどうやってSQL文に変えるか。頑張ればできるかもしれない。でも頑張りたくない。しかもこの記述ならSQLで書いたほうが短くわかりやすい。そうまでしてPython化する必要あるか？
+
+　パフォーマンスを無視するなら、全件取得したあとでラムダ式の条件に一致するレコードだけに絞ることも考えられる。でもそれはやりたくない。膨大なDBから全件取得なんて悪夢でしかない。
+
+　もういっそSQL文は生のテキストで書いてしまえばいいのでは？
+
+　問題は何だったか思い出してみる。`select`したとき行と列がすべて配列であり、1行目2列目のname列を取り出すとき`rows[0][1]`と書かねばならないことだ。これを`rows[0]['name']`としたい。もっといえば`rows[0].name`で参照できるようにしたい。できれば以下のパターンすべてに対応したい。
+
+```python
+rows[0][0]
+rows[0]['id']
+rows[0].id
+getattr(rows[0], 'id')
+rows[0,0]
+rows[0,'id']
+```
+
+　`rows[0].name`にしたいなら`namedtuple`を使う。
+
+```sql
+con.row_factory = sqlite3.Row
+rows = con.executes("select id, name from users;")
+Row = namedtuple('Row', rows.keys())
+return [Row(*row) for rwo in rows]
+```
+
+　`sqlite3.cursor.row_factory`を使って型変換する方法もある。標準実装されている`sqlite3.Row`を使えば`rows[0]['name']`のように文字列キーで参照できるようになる。
+
+```python
+con.row_factory = sqlite3.Row
+```
+
+　動作確認したコードは以下。
+
+```python
+import sqlite3
+from collections import namedtuple
+con = sqlite3.connect(':memory:')
+con.row_factory = sqlite3.Row
+cur = con.cursor()
+print(con.execute("create table users(id integer, name text);"))
+print(con.execute("insert into users values(0, 'A');"))
+print(con.execute("insert into users values(1, 'B');"))
+print(con.execute("select count(*) from users;").fetchone().keys())
+print(con.execute("select count(*) num from users;").fetchone().keys())
+print(con.execute("select count(*) num from users;").fetchone()['num'])
+print(con.execute("select count(*) num from users;").fetchall())
+#rows = con.execute("select count(*) from users;").fetchall() # ValueError: Type names and field names must be valid identifiers: 'count(*)'
+#rows = con.execute("select count(*) num from users;").fetchall()
+rows = con.execute("select count(*) num from users where id>=?;", (0,)).fetchall()
+print(rows[0].keys())
+print(rows[0])
+print(rows[0][0])
+#print(rows[0]['name']) #IndexError: No item with that key
+Row = namedtuple('Row', rows[0].keys())
+print([Row(*row) for row in rows])
+#con.commit()
+con.close()
+```
+
+　このへんの知識を使ってどうにか薄いラッパーを作りたい。
 
 # 所感
 
-　実装はまた今度。ちょっと大変そう。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-```python
-@dataclass
-class Record:
-    id: int
-    name: str
-    birth: datetime = datetime.now()
-    value: Decimal = Decimal('0.0')
-
-if __name__ == '__main__':
-    print(Record())
-    print(Record(1, 'A'))
-    print(Record(name='B', value=Decimal('9.9')))
-```
-
-
-```python
-@dataclass
-class Record:
-    id: int
-    name: str
-    birth: datetime = datetime.now()
-    value: Decimal # TypeError: non-default argument 'value' follows default argument
-```
-
-# mypyをインストールする
-
-```sh
-pip install mypy
-```
-
-　テスト用コードを書く。
-
-```python
-from dataclasses import dataclass, field
-@dataclass
-class Record:
-    item_ids: list[int]
-
-Record([1,2,3])
-Record(['A','B']) # ここでエラーになってほしい
-```
-
-　実行する。20秒くらいかかる。
-
-```sh
-$ mypy record.py
-```
-```sh
-record.py:7: error: List item 0 has incompatible type "str"; expected "int"
-record.py:7: error: List item 1 has incompatible type "str"; expected "int"
-Found 2 errors in 1 file (checked 1 source file)
-```
-
-　OK！　問題箇所のファイル名、行数、位置もメッセージから読み取れる。エラーの理由も英語だけど書いてる。
-
-　これをPython標準で実装してほしかった。
-
+　結局dataclass使ってない。namedtupleで十分。
 
